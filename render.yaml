@@ -17,3 +17,16 @@ services:
       - key: POLLINATIONS_SK_1
         sync: false
       # Add more POLLINATIONS_SK_2 ... POLLINATIONS_SK_N as needed
+
+  # Cron job: ping Supabase mỗi 3 ngày để tránh bị pause (free tier pause sau 7 ngày)
+  - type: cron
+    name: supabase-keepalive
+    runtime: node
+    schedule: "0 6 */3 * *"   # 06:00 UTC mỗi 3 ngày
+    buildCommand: npm install
+    startCommand: node scripts/keepalive.js
+    envVars:
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false

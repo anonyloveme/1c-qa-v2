@@ -1,0 +1,418 @@
+@import "tailwindcss";
+@import "tw-animate-css";
+@import "shadcn/tailwind.css";
+
+@custom-variant dark (&:is(.dark *));
+
+@theme inline {
+  --color-background: var(--background);
+  --color-foreground: var(--foreground);
+  --font-sans: var(--font-sans);
+  --font-mono: var(--font-mono);
+  --color-sidebar-ring: var(--sidebar-ring);
+  --color-sidebar-border: var(--sidebar-border);
+  --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
+  --color-sidebar-accent: var(--sidebar-accent);
+  --color-sidebar-primary-foreground: var(--sidebar-primary-foreground);
+  --color-sidebar-primary: var(--sidebar-primary);
+  --color-sidebar-foreground: var(--sidebar-foreground);
+  --color-sidebar: var(--sidebar);
+  --color-chart-5: var(--chart-5);
+  --color-chart-4: var(--chart-4);
+  --color-chart-3: var(--chart-3);
+  --color-chart-2: var(--chart-2);
+  --color-chart-1: var(--chart-1);
+  --color-ring: var(--ring);
+  --color-input: var(--input);
+  --color-border: var(--border);
+  --color-destructive: var(--destructive);
+  --color-accent-foreground: var(--accent-foreground);
+  --color-accent: var(--accent);
+  --color-muted-foreground: var(--muted-foreground);
+  --color-muted: var(--muted);
+  --color-secondary-foreground: var(--secondary-foreground);
+  --color-secondary: var(--secondary);
+  --color-primary-foreground: var(--primary-foreground);
+  --color-primary: var(--primary);
+  --color-popover-foreground: var(--popover-foreground);
+  --color-popover: var(--popover);
+  --color-card-foreground: var(--card-foreground);
+  --color-card: var(--card);
+  --radius-sm: calc(var(--radius) * 0.6);
+  --radius-md: calc(var(--radius) * 0.8);
+  --radius-lg: var(--radius);
+  --radius-xl: calc(var(--radius) * 1.4);
+  --radius-2xl: calc(var(--radius) * 1.8);
+  --radius-3xl: calc(var(--radius) * 2.2);
+  --radius-4xl: calc(var(--radius) * 2.6);
+}
+
+:root {
+  --background: #ffffff;
+  --foreground: #111827;
+  --card: #ffffff;
+  --card-foreground: #111827;
+  --popover: #ffffff;
+  --popover-foreground: #111827;
+  --primary: #2563eb;
+  --primary-foreground: #ffffff;
+  --secondary: #f3f4f6;
+  --secondary-foreground: #111827;
+  --muted: #f9fafb;
+  --muted-foreground: #6b7280;
+  --accent: #eff6ff;
+  --accent-foreground: #1e3a8a;
+  --destructive: #dc2626;
+  --border: #e5e7eb;
+  --input: #e5e7eb;
+  --ring: #2563eb;
+  --chart-1: oklch(0.72 0.14 241.2);
+  --chart-2: oklch(0.67 0.12 178.3);
+  --chart-3: oklch(0.77 0.13 95.8);
+  --chart-4: oklch(0.61 0.18 29.8);
+  --chart-5: oklch(0.55 0.17 310.6);
+  --radius: 0.625rem;
+  --sidebar: #1a1a2e;
+  --sidebar-foreground: #e5e5e5;
+  --sidebar-primary: #2563eb;
+  --sidebar-primary-foreground: #ffffff;
+  --sidebar-accent: #252540;
+  --sidebar-accent-foreground: #ffffff;
+  --sidebar-border: #2d2d4e;
+  --sidebar-ring: #2563eb;
+  --font-mono: "SFMono-Regular", "Consolas", "Liberation Mono", monospace;
+}
+
+@layer base {
+  * {
+    @apply border-border outline-ring/50;
+    box-sizing: border-box;
+  }
+
+  html,
+  body {
+    height: 100%;
+    height: 100dvh;
+    overflow: hidden;
+  }
+
+  html {
+    @apply scroll-smooth;
+  }
+  body {
+    @apply bg-background text-foreground antialiased;
+    font-family: var(--font-sans), "Segoe UI", sans-serif;
+  }
+  code,
+  pre,
+  kbd {
+    font-family: var(--font-mono), "Cascadia Code", monospace;
+  }
+
+  ::selection {
+    background-color: #bfdbfe;
+    color: #1e3a8a;
+  }
+
+  @keyframes fadeSlideIn {
+    from { opacity: 0; transform: translateY(6px); }
+    to   { opacity: 1; transform: translateY(0); }
+  }
+
+  @keyframes floatBounce {
+    0%, 100% { transform: translateY(0); }
+    50% { transform: translateY(-6px); }
+  }
+}
+
+@layer utilities {
+  /* Chat Markdown - style giong Claude.ai */
+  .chat-markdown {
+    @apply text-[15px] leading-[1.8] text-gray-900;
+    line-height: 1.8;
+    letter-spacing: -0.01em;
+  }
+
+  /* Khoang cach giua cac block */
+  .chat-markdown > * + * {
+    margin-top: 1rem;
+  }
+
+  /* Headings */
+  .chat-markdown h1 {
+    @apply mt-8 mb-3 text-xl font-bold text-gray-900;
+  }
+  .chat-markdown h2 {
+    @apply mt-7 mb-2.5 text-lg font-semibold text-gray-900;
+  }
+  .chat-markdown h3 {
+    @apply mt-5 mb-2 text-base font-semibold text-gray-800;
+  }
+
+  /* Paragraph */
+  .chat-markdown p {
+    @apply text-gray-800;
+    margin: 0;
+    line-height: 1.8;
+  }
+
+  /* List */
+  .chat-markdown ul {
+    @apply list-disc pl-6 text-gray-800;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .chat-markdown ol {
+    @apply list-decimal pl-6 text-gray-800;
+    display: flex;
+    flex-direction: column;
+    gap: 0.4rem;
+  }
+  .chat-markdown li {
+    @apply leading-relaxed;
+  }
+  /* List long nhau */
+  .chat-markdown li > ul,
+  .chat-markdown li > ol {
+    margin-top: 0.3rem;
+    margin-left: 0.5rem;
+  }
+
+  /* Inline code */
+  .chat-markdown :not(pre) > code {
+    @apply rounded-md px-2 py-0.5 text-[0.88em] font-medium text-orange-600;
+    background-color: #fff7ed;
+    border: 1px solid #fed7aa;
+    font-family: var(--font-mono), monospace;
+  }
+
+  /* Blockquote */
+  .chat-markdown blockquote {
+    @apply border-l-4 border-blue-300 pl-4 italic text-gray-600;
+    background-color: #f0f7ff;
+    border-radius: 0 6px 6px 0;
+    padding: 12px 18px;
+    margin: 0;
+  }
+
+  /* Link */
+  .chat-markdown a {
+    @apply font-medium text-blue-600 underline underline-offset-4 decoration-blue-200;
+  }
+  .chat-markdown a:hover {
+    @apply decoration-blue-500;
+  }
+
+  /* Strong / bold */
+  .chat-markdown strong {
+    @apply font-semibold text-gray-900;
+  }
+
+  /* Horizontal rule */
+  .chat-markdown hr {
+    @apply border-gray-200 my-4;
+  }
+
+  /* ═══ Table — wrap trong container để scroll mà giữ border-radius ═══ */
+  .chat-markdown .table-wrapper {
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+    border: 1px solid #e5e7eb;
+    border-radius: 8px;
+    margin: 8px 0;
+  }
+
+  .chat-markdown table {
+    @apply w-full text-sm border-collapse;
+    min-width: 400px;
+  }
+  .chat-markdown th {
+    @apply bg-gray-50 px-3 py-2 text-left font-semibold text-gray-700 md:px-4 md:py-2.5;
+    border-bottom: 2px solid #e5e7eb;
+    white-space: nowrap;
+  }
+  .chat-markdown td {
+    @apply px-3 py-2 text-gray-800 md:px-4 md:py-2.5;
+    border-bottom: 1px solid #f3f4f6;
+  }
+  .chat-markdown tr:last-child td {
+    border-bottom: none;
+  }
+  .chat-markdown tbody tr:hover {
+    background-color: #f9fafb;
+  }
+
+  /* ═══ Code block scroll mobile ═══ */
+  .chat-markdown pre {
+    max-width: 100%;
+    overflow-x: auto;
+    -webkit-overflow-scrolling: touch;
+  }
+
+  .scroll-smooth-touch {
+    -webkit-overflow-scrolling: touch;
+    scroll-behavior: smooth;
+  }
+}
+
+/* ═══ Custom Scrollbar (global) ═══ */
+.custom-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #d1d5db transparent;
+}
+.custom-scrollbar::-webkit-scrollbar {
+  width: 6px;
+}
+.custom-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #d1d5db;
+  border-radius: 3px;
+}
+.custom-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #9ca3af;
+}
+
+/* Sidebar scrollbar — mỏng hơn, tối hơn */
+.sidebar-scrollbar {
+  scrollbar-width: thin;
+  scrollbar-color: #3d3d6b transparent;
+}
+.sidebar-scrollbar::-webkit-scrollbar {
+  width: 4px;
+}
+.sidebar-scrollbar::-webkit-scrollbar-track {
+  background: transparent;
+}
+.sidebar-scrollbar::-webkit-scrollbar-thumb {
+  background-color: #3d3d6b;
+  border-radius: 2px;
+}
+.sidebar-scrollbar::-webkit-scrollbar-thumb:hover {
+  background-color: #5555aa;
+}
+
+/* Mobile Responsive */
+
+/* Safe area cho iPhone notch + extra padding */
+@supports (padding: env(safe-area-inset-bottom)) {
+  .mobile-safe-bottom {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 8px);
+  }
+  .mobile-safe-top {
+    padding-top: calc(env(safe-area-inset-top) + 16px) !important;
+  }
+}
+
+/* Sidebar slide animation */
+@keyframes slideInLeft {
+  from { transform: translateX(-100%); }
+  to   { transform: translateX(0); }
+}
+@keyframes slideOutLeft {
+  from { transform: translateX(0); }
+  to   { transform: translateX(-100%); }
+}
+@keyframes fadeIn {
+  from { opacity: 0; }
+  to   { opacity: 1; }
+}
+
+.sidebar-slide-in {
+  animation: slideInLeft 0.25s ease-out;
+}
+.sidebar-overlay-in {
+  animation: fadeIn 0.2s ease-out;
+}
+
+/* ═══ App Header & Footer — responsive padding với safe-area support ═══ */
+.app-header {
+  padding: 16px 12px 12px 12px;
+  min-height: 60px;
+  background-color: rgba(255, 255, 255, 0.85);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+}
+
+@media (min-width: 768px) {
+  .app-header {
+    padding: 18px 24px 14px 24px;
+    min-height: 64px;
+  }
+}
+
+@supports (padding: env(safe-area-inset-top)) {
+  .app-header {
+    padding-top: calc(env(safe-area-inset-top) + 16px);
+  }
+  @media (min-width: 768px) {
+    .app-header {
+      padding-top: calc(env(safe-area-inset-top) + 18px);
+    }
+  }
+}
+
+.app-footer {
+  padding: 8px 8px;
+  border-top: 1px solid #e5e7eb;
+}
+
+@media (min-width: 768px) {
+  .app-footer {
+    padding: 16px 24px;
+  }
+}
+
+@supports (padding: env(safe-area-inset-bottom)) {
+  .app-footer {
+    padding-bottom: calc(env(safe-area-inset-bottom) + 8px);
+  }
+  @media (min-width: 768px) {
+    .app-footer {
+      padding-bottom: calc(env(safe-area-inset-bottom) + 16px);
+    }
+  }
+}
+
+/* Mobile font-size fix (no zoom on focus) */
+@media (max-width: 768px) {
+  textarea,
+  input,
+  select {
+    font-size: 16px !important;
+  }
+
+  /* Giảm padding chat-markdown trên mobile */
+  .chat-markdown h1 { font-size: 18px; }
+  .chat-markdown h2 { font-size: 16px; }
+  .chat-markdown h3 { font-size: 15px; }
+
+  .chat-markdown th,
+  .chat-markdown td {
+    padding: 6px 8px;
+    font-size: 12px;
+  }
+}
+
+/* Code block responsive padding */
+.code-block-content {
+  padding: 12px 14px;
+  font-size: 13px;
+  line-height: 1.6;
+}
+@media (max-width: 640px) {
+  .code-block-content {
+    padding: 10px 10px;
+    font-size: 12px;
+    line-height: 1.55;
+  }
+}
+
+/* Tablet adjustments */
+@media (min-width: 768px) and (max-width: 1024px) {
+  .chat-markdown table {
+    min-width: 350px;
+  }
+}

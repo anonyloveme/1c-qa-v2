@@ -1,0 +1,19 @@
+services:
+  - type: web
+    name: 1c-qa-chatbot
+    runtime: node
+    buildCommand: npm install && npm run build
+    startCommand: npm start
+    plan: free
+    envVars:
+      - key: NODE_ENV
+        value: production
+      - key: NEXT_TELEMETRY_DISABLED
+        value: "1"
+      - key: SUPABASE_URL
+        sync: false
+      - key: SUPABASE_ANON_KEY
+        sync: false
+      - key: POLLINATIONS_SK_1
+        sync: false
+      # Add more POLLINATIONS_SK_2 ... POLLINATIONS_SK_N as needed

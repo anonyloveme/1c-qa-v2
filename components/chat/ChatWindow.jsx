@@ -30,21 +30,25 @@ function buildConversationTitle(text) {
   return normalized.length > 34 ? `${normalized.slice(0, 34)}...` : normalized;
 }
 
-// ✅ FIX BUG #1 + #3: Lọc sạch messages trước khi gửi API
+// ✅ FIX: Lọc sạch messages trước khi gửi API
 function toApiMessages(messages) {
   const cleaned = [];
   for (const msg of messages) {
     if (msg.role === "assistant") {
       if (!msg.content || !msg.content.trim() || msg.isError) continue;
     }
+    // Preserve array content (multipart messages with images) as-is
     cleaned.push({ role: msg.role, content: msg.content || "" });
   }
-  // Đảm bảo không có 2 role giống nhau liền kề (API requirement cho một số model)
+  // Đảm bảo không có 2 role giống nhau liền kề
   const result = [];
   for (const msg of cleaned) {
     const prev = result[result.length - 1];
     if (prev && prev.role === msg.role) {
-      prev.content = prev.content + "\n" + msg.content;
+      // Only merge if both are plain strings
+      if (typeof prev.content === "string" && typeof msg.content === "string") {
+        prev.content = prev.content + "\n" + msg.content;
+      }
     } else {
       result.push({ ...msg });
     }
@@ -60,14 +64,13 @@ function updateConversationList(conversations, conversationId, updater) {
   });
 }
 
-// ✅ FIX BUG #11: Loại bỏ base64 image khỏi messages trước khi lưu localStorage
+// Loại bỏ base64 image khỏi messages trước khi lưu localStorage
 function sanitizeForStorage(conversations) {
   return conversations.map((conv) => ({
     ...conv,
     messages: conv.messages.map((msg) => {
-      if (msg.image) {
-        // Chỉ giữ flag "có ảnh", không lưu data base64
-        return { ...msg, image: "[image]", _hadImage: true };
+      if (msg.images?.length) {
+        return { ...msg, images: msg.images.map(() => "[image]"), _hadImages: true };
       }
       return msg;
     }),
@@ -162,7 +165,7 @@ export function ChatWindow() {
 
   function handleSuggestedQuestion(question) {
     if (isStreaming || !activeConversation) return;
-    void handleSend({ text: question, uploadedFile: null });
+    void handleSend({ text: question, uploadedFiles: [] });
   }
 
   // ═══════════════════════════════════════════════════════════
@@ -217,15 +220,14 @@ export function ChatWindow() {
   // ═══════════════════════════════════════════════════════════
   // STREAM API CALL
   // ═══════════════════════════════════════════════════════════
-  async function callStreamAPI({ requestMessages, image, fileText, fileName, assistantMessageId, conversationId, signal }) {
+  async function callStreamAPI({ requestMessages, images, files, assistantMessageId, conversationId, signal }) {
     const response = await fetch("/api/chat", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify({
         messages: toApiMessages(requestMessages),
-        image: image || null,
-        fileText: fileText || null,
-        fileName: fileName || null,
+        images: images?.length ? images : undefined,
+        files: files?.length ? files : undefined,
         useFullDocument: true,
       }),
       signal,
@@ -397,49 +399,51 @@ export function ChatWindow() {
       );
     });
 
-    // BƯỚC 2: Tái tạo uploadedFile object từ dữ liệu user message
-    let uploadedFile = null;
+    // BƯỚC 2: Tái tạo uploadedFiles array từ dữ liệu user message
+    const uploadedFiles = [];
 
-    if (
-      userMsg.image &&
-      userMsg.image !== "[image]" &&
-      userMsg.image.startsWith("data:")
-    ) {
-      const match = userMsg.image.match(/^data:([^;]+);base64,(.+)$/);
-      if (match) {
-        uploadedFile = {
-          type: "image",
-          mimeType: match[1],
-          base64: match[2],
-        };
+    if (Array.isArray(userMsg.images)) {
+      for (const img of userMsg.images) {
+        if (typeof img === "string" && img !== "[image]" && img.startsWith("data:")) {
+          const match = img.match(/^data:([^;]+);base64,(.+)$/);
+          if (match) {
+            uploadedFiles.push({ type: "image", mimeType: match[1], base64: match[2] });
+          }
+        }
       }
     }
 
-    if (!uploadedFile && userMsg.attachedFile) {
-      uploadedFile = {
-        type: "document",
-        name: userMsg.attachedFile.name,
-        charCount: userMsg.attachedFile.charCount || 0,
-        text: userMsg.attachedFile.text || null,
-      };
+    if (Array.isArray(userMsg.attachedFiles)) {
+      for (const f of userMsg.attachedFiles) {
+        uploadedFiles.push({
+          type: "document",
+          name: f.name,
+          charCount: f.charCount || 0,
+          text: f.text || null,
+        });
+      }
     }
 
     // BƯỚC 3: Gọi handleSend — state đã flush xong nhờ flushSync ở trên
-    await handleSend({ text: userMsg.content || "", uploadedFile });
+    await handleSend({ text: userMsg.content || "", uploadedFiles });
   }
 
   // ═══════════════════════════════════════════════════════════
   // GỬI TIN NHẮN MỚI
   // ═══════════════════════════════════════════════════════════
-  async function handleSend({ text, uploadedFile }) {
+  async function handleSend({ text, uploadedFiles }) {
     const trimmed = text.trim();
-    if ((!trimmed && !uploadedFile) || !activeConversation) return false;
+    const hasFiles = uploadedFiles?.length > 0;
+    if ((!trimmed && !hasFiles) || !activeConversation) return false;
+
+    const imageFiles = (uploadedFiles || []).filter((f) => f.type === "image");
+    const docFiles = (uploadedFiles || []).filter((f) => f.type === "document");
 
     const fallback =
-      uploadedFile?.type === "image"
+      imageFiles.length > 0
         ? "Phân tích ảnh 1C này giúp tôi."
-        : uploadedFile?.type === "document"
-          ? "Phân tích file \"" + uploadedFile.name + "\" giúp tôi."
+        : docFiles.length > 0
+          ? `Phân tích file "${docFiles[0].name}" giúp tôi.`
           : "Hãy hỗ trợ tôi về 1C:Enterprise.";
 
     const userPrompt = trimmed || fallback;
@@ -449,12 +453,8 @@ export function ChatWindow() {
       id: crypto.randomUUID(),
       role: "user",
       content: userPrompt,
-      image: uploadedFile?.type === "image"
-        ? "data:" + uploadedFile.mimeType + ";base64," + uploadedFile.base64
-        : null,
-      attachedFile: uploadedFile?.type === "document"
-        ? { name: uploadedFile.name, charCount: uploadedFile.charCount || 0 }
-        : null,
+      images: imageFiles.map((f) => `data:${f.mimeType};base64,${f.base64}`),
+      attachedFiles: docFiles.map((f) => ({ name: f.name, charCount: f.charCount || 0 })),
       createdAt: Date.now(),
     };
 
@@ -479,9 +479,8 @@ export function ChatWindow() {
 
     const baseParams = {
       requestMessages,
-      image: uploadedFile?.type === "image" ? uploadedFile.base64 : null,
-      fileText: uploadedFile?.type === "document" ? uploadedFile.text : null,
-      fileName: uploadedFile?.type === "document" ? uploadedFile.name : null,
+      images: imageFiles.map((f) => f.base64),
+      files: docFiles.map((f) => ({ text: f.text, name: f.name })),
       assistantMessageId,
       conversationId,
     };

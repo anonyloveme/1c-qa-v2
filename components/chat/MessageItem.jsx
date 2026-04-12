@@ -152,9 +152,22 @@ function MarkdownMessage({ content }) {
 export function MessageItem({ message, onRetry }) {
   const isUser = message.role === "user";
 
-  // ✅ FIX BUG #11: Nếu ảnh đã bị strip thành "[image]", hiển thị placeholder
-  const hasRealImage = message.image && message.image !== "[image]" && message.image.startsWith("data:");
-  const hadImageButStripped = message.image === "[image]" || message._hadImage;
+  // Multi-file: resolve images and attachedFiles arrays (support old single-field too)
+  const images = message.images?.length
+    ? message.images
+    : message.image
+      ? [message.image]
+      : [];
+
+  const attachedFiles = message.attachedFiles?.length
+    ? message.attachedFiles
+    : message.attachedFile
+      ? [message.attachedFile]
+      : [];
+
+  const hadImagesStripped = message._hadImages || message._hadImage ||
+    images.some((img) => img === "[image]");
+  const realImages = images.filter((img) => img !== "[image]" && img.startsWith("data:"));
 
   return (
     <div
@@ -200,11 +213,12 @@ export function MessageItem({ message, onRetry }) {
                 }
           }
         >
-          {/* Hiển thị ảnh thật nếu có */}
-          {hasRealImage ? (
+          {/* Show real images */}
+          {realImages.map((src, i) => (
             <img
-              alt="Uploaded screenshot"
-              src={message.image}
+              key={i}
+              alt={`Uploaded image ${i + 1}`}
+              src={src}
               style={{
                 display: "block",
                 maxHeight: "220px",
@@ -214,10 +228,10 @@ export function MessageItem({ message, onRetry }) {
                 border: isUser ? "1px solid rgba(255,255,255,0.2)" : "1px solid #e5e7eb",
               }}
             />
-          ) : null}
+          ))}
 
-          {/* ✅ FIX: Placeholder cho ảnh đã bị strip khỏi storage */}
-          {!hasRealImage && hadImageButStripped ? (
+          {/* Placeholder for stripped images */}
+          {realImages.length === 0 && hadImagesStripped ? (
             <div
               style={{
                 display: "flex",
@@ -239,8 +253,10 @@ export function MessageItem({ message, onRetry }) {
 
           {isUser ? (
             <>
-              {message.attachedFile ? (
+              {/* Attached document files */}
+              {attachedFiles.map((file, i) => (
                 <div
+                  key={i}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -266,15 +282,14 @@ export function MessageItem({ message, onRetry }) {
                         whiteSpace: "nowrap",
                       }}
                     >
-                      {message.attachedFile.name}
+                      {file.name}
                     </p>
-                    {/* ✅ FIX BUG #5: "ký tự" thay vì "k k t" */}
                     <p style={{ margin: 0, fontSize: "10px", opacity: 0.75 }}>
-                      {(message.attachedFile.charCount / 1000).toFixed(1)}k ký tự
+                      {((file.charCount || 0) / 1000).toFixed(1)}k ký tự
                     </p>
                   </div>
                 </div>
-              ) : null}
+              ))}
               <p style={{ margin: 0, whiteSpace: "pre-wrap" }}>{message.content || ""}</p>
             </>
           ) : (

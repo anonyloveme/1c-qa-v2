@@ -243,10 +243,13 @@ export async function streamClaudeCompletion({
 
   const normalizedMessages = messages
     .filter((msg) => msg.role !== "system")
-    .map((msg) => ({
-      role: msg.role,
-      content: normalizeMessageContent(msg.content),
-    }));
+    .map((msg) => {
+      // Preserve array content (multipart: text + image_url blocks) as-is
+      if (Array.isArray(msg.content)) {
+        return { role: msg.role, content: msg.content };
+      }
+      return { role: msg.role, content: normalizeMessageContent(msg.content) };
+    });
 
   // Giới hạn context window: chỉ gửi 10 messages gần nhất (tránh vượt token limit)
   const MAX_HISTORY = 10;

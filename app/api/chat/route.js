@@ -1,6 +1,5 @@
 import { searchDocumentContext } from "@/services/document";
 import { streamClaudeCompletion, buildUserMessageWithFile } from "@/services/claude";
-import { analyzeImage } from "@/services/vision";
 import { getBalancerHealth } from "@/services/pollinationsBalancer";
 import { checkRateLimit } from "@/lib/rateLimit";
 
@@ -27,11 +26,21 @@ export async function POST(request) {
 
   const {
     messages = [],
+    // images: array of base64 strings (new multi-image support)
+    images = [],
+    // legacy single image support
     image = null,
+    // files: array of { text, name } (new multi-file support)
+    files = [],
+    // legacy single file support
     fileText = null,
     fileName = null,
     useFullDocument = false,
   } = await request.json();
+
+  // Normalize: merge legacy single + new array formats
+  const allImages = [...(Array.isArray(images) ? images : []), ...(image ? [image] : [])];
+  const allFiles = [...(Array.isArray(files) ? files : []), ...(fileText ? [{ text: fileText, name: fileName || "file" }] : [])];
 
   const normalizedMessages = Array.isArray(messages) ? messages : [];
 
@@ -51,36 +60,47 @@ export async function POST(request) {
         controller.enqueue(encoder.encode(ssePayload(payload)));
 
       try {
-        // Tạo search query: ưu tiên nội dung file nếu có
         const userContent = latestUserMessage?.content || "";
-        const searchQuery = fileText
-          ? `${userContent} ${fileText.slice(0, 500)}`
+        // Build search query from text + first file excerpt
+        const searchQuery = allFiles.length > 0
+          ? `${userContent} ${allFiles[0].text?.slice(0, 500) ?? ""}`
           : userContent;
 
-        // ✅ FIX: Truyền useFullDocument từ client đúng cách
-        const [imageAnalysis, documentResult] = await Promise.all([
-          image
-            ? analyzeImage(image).catch((err) => {
-                console.error("[Chat] Vision failed:", err.message);
-                return "Không thể phân tích ảnh. Bạn đã upload một ảnh screenshot 1C nhưng hệ thống không đọc được. Vui lòng mô tả nội dung ảnh.";
-              })
-            : Promise.resolve(""),
-          searchDocumentContext(searchQuery, { useFullDocument }),
-        ]);
+        const documentResult = await searchDocumentContext(searchQuery, { useFullDocument });
 
-        // Inject file vào tin nhắn user
+        // Build enriched messages: inject files as text + images as image_url blocks
         const enrichedMessages = normalizedMessages.map((msg, idx) => {
           const isLast = idx === normalizedMessages.length - 1 && msg.role === "user";
-          if (isLast && fileText) {
-            return { ...msg, content: buildUserMessageWithFile(msg.content, fileText, fileName) };
+          if (!isLast) return msg;
+
+          // Build multipart content array for the last user message
+          const contentParts = [];
+
+          // Text part (with all document files appended)
+          let textContent = msg.content || "";
+          for (const f of allFiles) {
+            textContent = buildUserMessageWithFile(textContent, f.text, f.name);
           }
-          return msg;
+          contentParts.push({ type: "text", text: textContent });
+
+          // Image parts — embed directly so model sees images
+          for (const imgBase64 of allImages) {
+            const imageUrl = imgBase64.startsWith("data:")
+              ? imgBase64
+              : `data:image/jpeg;base64,${imgBase64}`;
+            contentParts.push({
+              type: "image_url",
+              image_url: { url: imageUrl },
+            });
+          }
+
+          return { ...msg, content: contentParts };
         });
 
         await streamClaudeCompletion({
           systemPrompt: "",
           documentContext: documentResult.context,
-          imageAnalysis,
+          imageAnalysis: null, // images now embedded directly in messages
           fileText: null,
           fileName: null,
           messages: enrichedMessages,

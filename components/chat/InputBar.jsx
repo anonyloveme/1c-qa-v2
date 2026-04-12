@@ -52,7 +52,7 @@ async function compressImage(file, maxDim = 768) {
 
 export function InputBar({ isStreaming, onSend, onStop, externalFile, onExternalFileConsumed }) {
   const [text, setText] = useState("");
-  const [uploadedFile, setUploadedFile] = useState(null);
+  const [uploadedFiles, setUploadedFiles] = useState([]);  // multi-file
   const [isUploading, setIsUploading] = useState(false);
   const [isDraggingOver, setIsDraggingOver] = useState(false);
   const [uploadError, setUploadError] = useState("");
@@ -60,6 +60,8 @@ export function InputBar({ isStreaming, onSend, onStop, externalFile, onExternal
   const fileInputRef = useRef(null);
   const dropZoneRef = useRef(null);
   const dragCounterRef = useRef(0);
+
+  const MAX_FILES = 3;
 
   useEffect(() => {
     const textarea = textareaRef.current;
@@ -79,9 +81,13 @@ export function InputBar({ isStreaming, onSend, onStop, externalFile, onExternal
       return;
     }
 
+    if (uploadedFiles.length >= MAX_FILES) {
+      setUploadError(`Tối đa ${MAX_FILES} file mỗi lần gửi.`);
+      return;
+    }
+
     let fileToUpload = file;
 
-    // ✅ Compress ảnh trước upload để giảm vision token input
     if (file.type.startsWith("image/")) {
       try {
         const compressed = await compressImage(file, 768);
@@ -89,11 +95,8 @@ export function InputBar({ isStreaming, onSend, onStop, externalFile, onExternal
           fileToUpload = new File([compressed], file.name.replace(/\.\w+$/, ".jpg"), {
             type: "image/jpeg",
           });
-          console.log(`[Upload] Ảnh compressed: ${file.size} → ${fileToUpload.size} bytes`);
         }
-      } catch (e) {
-        console.warn("[Upload] Không compress được, dùng ảnh gốc");
-      }
+      } catch { /* use original */ }
     }
 
     const formData = new FormData();
@@ -101,17 +104,12 @@ export function InputBar({ isStreaming, onSend, onStop, externalFile, onExternal
 
     try {
       setIsUploading(true);
-      const response = await fetch("/api/upload", {
-        method: "POST",
-        body: formData,
-      });
+      const response = await fetch("/api/upload", { method: "POST", body: formData });
       const data = await response.json();
 
-      if (!response.ok || !data.success) {
-        throw new Error(data.error || "Upload thất bại.");
-      }
+      if (!response.ok || !data.success) throw new Error(data.error || "Upload thất bại.");
 
-      setUploadedFile(data);
+      setUploadedFiles((prev) => [...prev, data]);
       setUploadError("");
     } catch (error) {
       setUploadError(error instanceof Error ? error.message : "Upload thất bại. Vui lòng thử lại.");
@@ -119,18 +117,21 @@ export function InputBar({ isStreaming, onSend, onStop, externalFile, onExternal
       setIsUploading(false);
       if (fileInputRef.current) fileInputRef.current.value = "";
     }
-  }, []);
+  }, [uploadedFiles]);
 
-  // ✅ Nhận file từ global drop (ChatWindow)
+  // Nhận file từ global drop (ChatWindow)
   useEffect(() => {
-    if (externalFile && !isUploading && !uploadedFile) {
-      processFile(externalFile);
+    if (externalFile && !isUploading) {
+      if (uploadedFiles.length < MAX_FILES) {
+        processFile(externalFile);
+      } else {
+        setUploadError(`Tối đa ${MAX_FILES} file mỗi lần gửi.`);
+      }
       onExternalFileConsumed?.();
     } else if (externalFile) {
-      // Đã có file hoặc đang upload → bỏ qua, reset
       onExternalFileConsumed?.();
     }
-  }, [externalFile, isUploading, uploadedFile, processFile, onExternalFileConsumed]);
+  }, [externalFile, isUploading, uploadedFiles.length, processFile, onExternalFileConsumed]);
 
   const handleDragEnter = useCallback((e) => {
     e.preventDefault();
@@ -163,34 +164,33 @@ export function InputBar({ isStreaming, onSend, onStop, externalFile, onExternal
 
     if (isStreaming || isUploading) return;
 
-    const file = e.dataTransfer?.files?.[0];
-    if (file) {
+    // Support dropping multiple files at once (up to MAX_FILES)
+    const droppedFiles = Array.from(e.dataTransfer?.files ?? []).slice(0, MAX_FILES);
+    for (const file of droppedFiles) {
       processFile(file);
     }
   }, [isStreaming, isUploading, processFile]);
 
   function handleFileChange(event) {
-    const file = event.target.files?.[0];
-    if (file) processFile(file);
+    const files = Array.from(event.target.files ?? []).slice(0, MAX_FILES);
+    for (const file of files) processFile(file);
   }
 
   async function handleSubmit() {
     const currentText = text;
-    const currentFile = uploadedFile;
+    const currentFiles = uploadedFiles;
 
-    if (!currentText.trim() && !currentFile) return;
+    if (!currentText.trim() && currentFiles.length === 0) return;
 
     setText("");
-    setUploadedFile(null);
-    if (fileInputRef.current) {
-      fileInputRef.current.value = "";
-    }
+    setUploadedFiles([]);
+    if (fileInputRef.current) fileInputRef.current.value = "";
 
-    await onSend({ uploadedFile: currentFile, text: currentText });
+    await onSend({ uploadedFiles: currentFiles, text: currentText });
   }
 
   const handlePaste = useCallback((e) => {
-    if (isStreaming || isUploading || uploadedFile) return;
+    if (isStreaming || isUploading || uploadedFiles.length >= MAX_FILES) return;
 
     const items = e.clipboardData?.items;
     if (!items) return;
@@ -205,7 +205,11 @@ export function InputBar({ isStreaming, onSend, onStop, externalFile, onExternal
         }
       }
     }
-  }, [isStreaming, isUploading, uploadedFile, processFile]);
+  }, [isStreaming, isUploading, uploadedFiles.length, processFile]);
+
+  function removeFile(index) {
+    setUploadedFiles((prev) => prev.filter((_, i) => i !== index));
+  }
 
   return (
     <div className="mx-auto w-full max-w-5xl">
@@ -245,7 +249,7 @@ export function InputBar({ isStreaming, onSend, onStop, externalFile, onExternal
               Thả file vào đây
             </p>
             <p style={{ fontSize: "12px", color: "#6b7280", marginTop: "2px" }}>
-              Ảnh, docx, pdf, txt, csv, md
+              Hỗ trợ tối đa {MAX_FILES} file: ảnh, docx, pdf, txt, csv, md
             </p>
           </div>
         )}
@@ -263,31 +267,47 @@ export function InputBar({ isStreaming, onSend, onStop, externalFile, onExternal
           </div>
         ) : null}
 
-        {uploadedFile ? (
-          <div className="mb-3 inline-flex w-full items-center gap-3 rounded-xl border border-gray-200 bg-gray-50 px-3 py-2">
-            {uploadedFile.type === "image" ? (
-              <img
-                alt={uploadedFile.name}
-                src={`data:${uploadedFile.mimeType};base64,${uploadedFile.base64}`}
-                className="size-11 rounded-xl object-cover shadow-sm md:size-14"
-                style={{ border: "1px solid #e5e7eb" }}
-              />
-            ) : (
-              <div className="flex size-11 items-center justify-center rounded-lg bg-white text-gray-500 md:size-14">
-                <FileText className="size-7" />
+        {/* Multi-file preview list */}
+        {uploadedFiles.length > 0 ? (
+          <div className="mb-3 flex flex-wrap gap-2">
+            {uploadedFiles.map((file, index) => (
+              <div
+                key={index}
+                className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-2 py-1.5"
+              >
+                {file.type === "image" ? (
+                  <img
+                    alt={file.name}
+                    src={`data:${file.mimeType};base64,${file.base64}`}
+                    className="size-9 rounded-lg object-cover"
+                    style={{ border: "1px solid #e5e7eb" }}
+                  />
+                ) : (
+                  <div className="flex size-9 items-center justify-center rounded-lg bg-white text-gray-500">
+                    <FileText className="size-5" />
+                  </div>
+                )}
+                <div className="min-w-0 max-w-[120px]">
+                  <p className="truncate text-xs font-medium leading-tight">{file.name}</p>
+                  <p className="text-[10px] text-gray-400 leading-tight">
+                    {file.type === "image" ? "ảnh" : `${((file.charCount || 0) / 1000).toFixed(1)}k ký tự`}
+                  </p>
+                </div>
+                <button
+                  type="button"
+                  className="ml-1 shrink-0 rounded-full p-0.5 text-gray-400 hover:bg-gray-200 hover:text-gray-600"
+                  onClick={() => removeFile(index)}
+                >
+                  <X size={12} />
+                </button>
+              </div>
+            ))}
+            {isUploading && (
+              <div className="flex items-center gap-2 rounded-xl border border-gray-200 bg-gray-50 px-3 py-1.5">
+                <Loader2 className="size-4 animate-spin text-gray-400" />
+                <span className="text-xs text-gray-400">Đang tải...</span>
               </div>
             )}
-            <div className="min-w-0">
-              <p className="max-w-[40vw] truncate text-sm font-medium md:max-w-52">{uploadedFile.name}</p>
-              {uploadedFile.type === "image" ? (
-                <p className="text-xs text-gray-500">Ảnh sẽ được gửi sang bước Vision trước khi trả lời.</p>
-              ) : (
-                <p className="text-xs text-gray-500">{((uploadedFile.charCount || 0) / 1000).toFixed(1)}k ký tự đã trích xuất.</p>
-              )}
-            </div>
-            <Button variant="ghost" size="icon" className="ml-auto size-8 rounded-lg text-gray-500" onClick={() => setUploadedFile(null)}>
-              <X className="size-4" />
-            </Button>
           </div>
         ) : null}
 
@@ -296,8 +316,9 @@ export function InputBar({ isStreaming, onSend, onStop, externalFile, onExternal
             variant="outline"
             size="icon"
             className="mb-0.5 size-10 shrink-0 rounded-xl border-gray-200 text-gray-600 hover:bg-gray-50 md:size-11"
-            disabled={isStreaming || isUploading}
+            disabled={isStreaming || isUploading || uploadedFiles.length >= MAX_FILES}
             onClick={() => fileInputRef.current?.click()}
+            title={uploadedFiles.length >= MAX_FILES ? `Tối đa ${MAX_FILES} file` : "Đính kèm file"}
           >
             {isUploading ? <Loader2 className="size-4 animate-spin md:size-5" /> : <Paperclip className="size-4 md:size-5" />}
           </Button>
@@ -306,6 +327,7 @@ export function InputBar({ isStreaming, onSend, onStop, externalFile, onExternal
             ref={fileInputRef}
             type="file"
             accept="image/*,.docx,.pdf,.txt,.csv,.md"
+            multiple
             className="hidden"
             onChange={handleFileChange}
             disabled={isStreaming || isUploading}
@@ -335,7 +357,7 @@ export function InputBar({ isStreaming, onSend, onStop, externalFile, onExternal
                 ? "bg-red-500 hover:bg-red-600 hover:shadow-lg hover:shadow-red-500/25"
                 : "bg-blue-600 hover:bg-blue-700 hover:shadow-lg hover:shadow-blue-600/25"
             }`}
-            disabled={isUploading || (!isStreaming && !text.trim() && !uploadedFile)}
+            disabled={isUploading || (!isStreaming && !text.trim() && uploadedFiles.length === 0)}
             onClick={() => isStreaming ? onStop?.() : void handleSubmit()}
           >
             {isStreaming ? <Square className="size-4 md:size-5" fill="currentColor" /> : <SendHorizontal className="size-4 md:size-5" />}
@@ -343,8 +365,8 @@ export function InputBar({ isStreaming, onSend, onStop, externalFile, onExternal
         </div>
 
         <p className="mt-2 px-1 text-[10px] text-gray-500 md:mt-3 md:text-xs">
-          <span className="md:hidden">Enter gửi · Shift+Enter xuống dòng · Hỗ trợ ảnh, docx, pdf</span>
-          <span className="hidden md:inline">Enter để gửi, Shift+Enter để xuống dòng. Hỗ trợ kéo thả hoặc dán (Ctrl+V) ảnh, docx, pdf, txt, csv, md.</span>
+          <span className="md:hidden">Enter gửi · Shift+Enter xuống dòng · Tối đa {MAX_FILES} file</span>
+          <span className="hidden md:inline">Enter để gửi, Shift+Enter để xuống dòng. Hỗ trợ kéo thả hoặc dán ảnh. Tối đa {MAX_FILES} file/lần.</span>
         </p>
       </div>
     </div>

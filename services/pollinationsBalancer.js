@@ -5,10 +5,10 @@
 
 const POLLINATIONS_URL = 'https://gen.pollinations.ai/v1/chat/completions';
 
-// Primary: openai (GPT-5.4, vision, 400k context) — free tier
-// Secondary: gemini (Gemini Flash, vision, 1M context) — free tier
-// Tertiary: deepseek (DeepSeek, text-only, 163k context) — free tier
-const MODELS = ['openai', 'gemini', 'deepseek'];
+// Primary: claude-fast (Claude, vision) — preferred
+// Secondary: openai (GPT-5.4, vision, 400k context) — free tier
+// Tertiary: gemini (Gemini Flash, vision, 1M context) — free tier
+const MODELS = ['claude-fast', 'openai', 'gemini'];
 
 const modelFailCounts = {};
 const MODEL_FAIL_THRESHOLD = 2; // ✅ Giảm từ 3 → 2 (chuyển model nhanh hơn)
